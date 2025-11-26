@@ -1,16 +1,27 @@
-const { DataTypes } = require('sequelize');
-const sequelize = require('../config/database');
+const Cliente = require('./Cliente');
+const Posto = require('./Posto');
+const Veiculo = require('./Veiculo');
+const Abastecimento = require('./Abastecimento');
+const Medicao = require('./Medicao');
+const AlertaCacamba = require('./AlertaCacamba');
+const User = require('./User');
 
-const Projeto = sequelize.define('Projeto', {
-    id_projeto: {
-        type: DataTypes.INTEGER,
-        primaryKey: true,
-        autoIncrement: true
-    },
-    nome: DataTypes.STRING
-}, {
-    tableName: 'nome_da_tabela_projeto', // Ajuste para o nome real
-    timestamps: false
-});
+const definirAssociacoes = () => {
+    // Veículo pertence a Cliente
+    Veiculo.belongsTo(Cliente, { foreignKey: 'cod_cliente', targetKey: 'codigo' });
+    
+    // Abastecimento liga com Veículo e Posto
+    Abastecimento.belongsTo(Veiculo, { foreignKey: 'cod_veiculo', targetKey: 'codigo' });
+    Abastecimento.belongsTo(Posto, { foreignKey: 'cod_posto', targetKey: 'codigo' });
 
-module.exports = Projeto;
+    // Medição pertence a Veículo
+    Medicao.belongsTo(Veiculo, { foreignKey: 'cod_veiculo', targetKey: 'codigo' });
+    
+    // Alerta pertence a Veículo
+    AlertaCacamba.belongsTo(Veiculo, { foreignKey: 'cod_veiculo', targetKey: 'codigo' });
+    
+    // Usuário pertence a Cliente (se for usuário comum)
+    User.belongsTo(Cliente, { foreignKey: 'cod_cliente', targetKey: 'codigo' });
+};
+
+module.exports = definirAssociacoes;
