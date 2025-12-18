@@ -68,24 +68,33 @@ exports.medicoes = async (req, res) => {
                 cod_veiculo: { [Op.in]: ids_veiculos },
                 data_hora: { [Op.between]: [data_inicial, data_final] } // Usa o field map que criamos no Model
             },
-            include: [{ model: Veiculo, attributes: ['placa'] }],
+            include: [{ model: Veiculo, attributes: ['placa', 'cacamba_com_status_motor'] }],
             limit: 100,
             order: [['data_hora', 'DESC']]
         });
 
         // Formata o JSON de resposta
-        const dadosFormatados = dados.map(item => ({
-            placa: item.Veiculo ? item.Veiculo.placa : 'N/A',
-            latitude: item.latitude,
-            longitude: item.longitude,
-            velocidade: item.velocidade,
-            
-            status_motor: item.status_motor,
+        const dadosFormatados = dados.map(item => {
+            const veiculo = item.Veiculo;
+            // Verifica se o veículo tem a flag 'S' para exibir caçamba
+            const exibirCacamba = veiculo && veiculo.cacamba_com_status_motor === 'S';
 
-            status_cacamba: item.status_cacamba,
-            
-            data: item.data_hora
-        }));
+            const obj = {
+                placa: veiculo ? veiculo.placa : 'N/A',
+                latitude: item.latitude,
+                longitude: item.longitude,
+                velocidade: item.velocidade,
+                status_motor: item.status_motor,
+                data: item.data_hora
+            };
+
+            // Só adiciona o campo se a flag for 'S'
+            if (exibirCacamba) {
+                obj.status_cacamba = item.status_cacamba;
+            }
+
+            return obj;
+        });
 
         res.json({
             tipo: 'Medicoes',

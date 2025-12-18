@@ -9,6 +9,7 @@ const Veiculo = sequelize.define('Veiculo', {
     },
     placa: DataTypes.STRING,
     modelo: DataTypes.STRING,
+    cacamba_com_status_motor: DataTypes.STRING, // Novo campo para controle de exibição
     cod_cliente: DataTypes.INTEGER // Chave estrangeira (FK)
 }, {
     tableName: 'veiculo',
