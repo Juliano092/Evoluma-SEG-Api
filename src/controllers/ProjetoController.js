@@ -79,7 +79,11 @@ exports.medicoes = async (req, res) => {
             latitude: item.latitude,
             longitude: item.longitude,
             velocidade: item.velocidade,
+            
             status_motor: item.status_motor,
+
+            status_cacamba: item.status_cacamba,
+            
             data: item.data_hora
         }));
 
