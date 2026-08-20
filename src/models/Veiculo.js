@@ -8,6 +8,7 @@ const Veiculo = sequelize.define('Veiculo', {
         autoIncrement: true
     },
     placa: DataTypes.STRING,
+    prefixo: DataTypes.STRING,
     modelo: DataTypes.STRING,
     cacamba_com_status_motor: DataTypes.STRING, // Novo campo para controle de exibição
     cod_cliente: DataTypes.INTEGER // Chave estrangeira (FK)

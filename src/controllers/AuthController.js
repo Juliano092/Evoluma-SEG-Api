@@ -22,14 +22,14 @@ exports.login = async (req, res) => {
                 id: usuario.codigo, 
                 nome: usuario.nome,
                 cod_cliente: usuario.cod_cliente // <--- ADICIONEI ESTA LINHA
-            }, 
+            },
             process.env.JWT_SECRET,
             { expiresIn: '1y' }
         );
         // ------------------------------------------
 
-        res.json({ 
-            token, 
+        res.json({
+            token,
             user: {
                 codigo: usuario.codigo,
                 nome: usuario.nome,
