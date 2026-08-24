@@ -16,17 +16,15 @@ exports.login = async (req, res) => {
             return res.status(401).json({ message: 'Credenciais inválidas' });
         }
 
-        // --- AQUI ESTAVA FALTANDO O COD_CLIENTE ---
+        // Token encurtado e otimizado
         const token = jwt.sign(
             { 
                 id: usuario.codigo, 
-                nome: usuario.nome,
-                cod_cliente: usuario.cod_cliente // <--- ADICIONEI ESTA LINHA
+                cod_cliente: usuario.cod_cliente
             },
             process.env.JWT_SECRET,
             { expiresIn: '1y' }
         );
-        // ------------------------------------------
 
         res.json({
             token,
