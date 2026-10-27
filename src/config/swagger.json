@@ -1,0 +1,296 @@
+{
+  "openapi": "3.0.0",
+  "info": {
+    "title": "API Evoluma-SEG - Rastreamento e Telemetria Veicular",
+    "description": "API REST para integração de telemetria, posicionamento GPS, resumo operacional e sincronização contínua de frotas.\n\n### 🔑 Autenticação\nAs requisições autenticadas devem incluir a chave no cabeçalho:\n- `Authorization: Bearer <TOKEN>`\n- ou `X-API-Key: <TOKEN>`",
+    "version": "1.1.0"
+  },
+  "servers": [
+    {
+      "url": "http://localhost:3000/api",
+      "description": "Servidor Local / Desenvolvimento"
+    },
+    {
+      "url": "https://api.evoluma.com:3000/api",
+      "description": "Servidor Produção"
+    }
+  ],
+  "components": {
+    "securitySchemes": {
+      "BearerAuth": {
+        "type": "http",
+        "scheme": "bearer",
+        "bearerFormat": "JWT",
+        "description": "Token JWT permanente gerado para o cliente"
+      },
+      "ApiKeyAuth": {
+        "type": "apiKey",
+        "in": "header",
+        "name": "X-API-Key",
+        "description": "Chave de API enviada no cabeçalho X-API-Key"
+      }
+    },
+    "schemas": {
+      "Veiculo": {
+        "type": "object",
+        "properties": {
+          "id": { "type": "integer", "example": 10 },
+          "id_veiculo": { "type": "integer", "example": 10 },
+          "placa": { "type": "string", "example": "MFE-7705" },
+          "prefixo": { "type": "string", "nullable": true, "example": "CAM-01" },
+          "descricao": { "type": "string", "nullable": true, "example": "Mercedes-Benz Atego" },
+          "modelo": { "type": "string", "nullable": true, "example": "Atego 2426" },
+          "ativo": { "type": "boolean", "example": true },
+          "status": { "type": "string", "example": "Ativo" },
+          "latitude": { "type": "number", "format": "float", "nullable": true, "example": -26.869693 },
+          "longitude": { "type": "number", "format": "float", "nullable": true, "example": -49.096852 },
+          "data_hora": { "type": "string", "nullable": true, "example": "2025-08-23T12:54:52-03:00" },
+          "velocidade": { "type": "integer", "example": 0 },
+          "direcao": { "type": "number", "example": 0 },
+          "ignicao": { "type": "string", "example": "Desligado" },
+          "ignicao_ligada": { "type": "boolean", "example": false },
+          "odometro": { "type": "number", "example": 453239.14 }
+        }
+      },
+      "Posicao": {
+        "type": "object",
+        "properties": {
+          "id_veiculo": { "type": "integer", "example": 2205 },
+          "placa": { "type": "string", "example": "AKL5149" },
+          "latitude": { "type": "number", "format": "float", "example": -26.869693 },
+          "longitude": { "type": "number", "format": "float", "example": -49.096852 },
+          "data_hora_gps": { "type": "string", "example": "2025-08-23T12:54:52-03:00", "description": "Data/hora do GPS com fuso (-03:00)" },
+          "data_hora_recebimento": { "type": "string", "example": "2025-08-23T12:54:56-03:00", "description": "Data/hora recebida pelo servidor com fuso (-03:00)" },
+          "velocidade": { "type": "integer", "example": 0, "description": "Velocidade em km/h" },
+          "direcao": { "type": "number", "example": 0, "description": "Curso/azimute em graus" },
+          "ignicao": { "type": "string", "enum": ["Ligada", "Desligada"], "example": "Desligada" },
+          "odometro": { "type": "number", "example": 453239.14, "description": "Odômetro em km" }
+        }
+      }
+    }
+  },
+  "security": [
+    { "BearerAuth": [] },
+    { "ApiKeyAuth": [] }
+  ],
+  "paths": {
+    "/login": {
+      "post": {
+        "summary": "Autenticação e obtenção de token JWT",
+        "security": [],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "required": ["login", "senha"],
+                "properties": {
+                  "login": { "type": "string", "example": "usuario_cliente" },
+                  "senha": { "type": "string", "example": "senha123" }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": { "description": "Autenticado com sucesso" },
+          "401": { "description": "Credenciais inválidas" }
+        }
+      }
+    },
+    "/token": {
+      "post": {
+        "summary": "Gerar token/chave diretamente por código e nome do cliente",
+        "description": "Gera um token permanente para integrações informando apenas o código e o nome do cliente, sem necessidade de usuário e senha.",
+        "security": [],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "required": ["cod_cliente"],
+                "properties": {
+                  "cod_cliente": { "type": "integer", "example": 5, "description": "Código do cliente no sistema" },
+                  "nome": { "type": "string", "example": "Cliente Coleta de Resíduos", "description": "Nome do cliente (opcional - busca no banco se omitido)" }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Token gerado com sucesso",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "token": { "type": "string", "example": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9..." }
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/veiculos": {
+      "get": {
+        "summary": "1. Lista de veículos da frota",
+        "description": "Retorna todos os veículos autorizados para o cliente (com placa, prefixo, descrição e status ativo).",
+        "parameters": [
+          { "name": "ativo", "in": "query", "schema": { "type": "boolean" }, "description": "Filtrar por ativo (true/false)" },
+          { "name": "placa", "in": "query", "schema": { "type": "string" }, "description": "Filtrar por placa" }
+        ],
+        "responses": {
+          "200": {
+            "description": "Lista de veículos retornada com sucesso",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "qtd": { "type": "integer", "example": 5 },
+                    "veiculos": {
+                      "type": "array",
+                      "items": { "$ref": "#/components/schemas/Veiculo" }
+                    }
+                  }
+                }
+              }
+            }
+          }
+        }
+      },
+      "post": {
+        "summary": "1. Lista de veículos da frota (via POST)",
+        "description": "Mesmo retorno do GET /veiculos, permitindo filtros e envio de token no corpo JSON.",
+        "responses": { "200": { "description": "Sucesso" } }
+      }
+    },
+    "/posicoes/ultimas": {
+      "get": {
+        "summary": "2. Última posição de toda a frota numa única consulta",
+        "description": "Retorna em tempo real a posição mais recente de cada veículo ativo da frota do cliente.",
+        "responses": {
+          "200": {
+            "description": "Últimas posições da frota",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "qtd": { "type": "integer", "example": 10 },
+                    "posicoes": {
+                      "type": "array",
+                      "items": { "$ref": "#/components/schemas/Posicao" }
+                    }
+                  }
+                }
+              }
+            }
+          }
+        }
+      },
+      "post": {
+        "summary": "2. Última posição de toda a frota (via POST)",
+        "responses": { "200": { "description": "Sucesso" } }
+      }
+    },
+    "/posicoes/historico": {
+      "post": {
+        "summary": "3. Histórico de posições por período com paginação",
+        "description": "Retorna todas as posições de um veículo entre duas datas/horas em ordem cronológica com suporte a paginação para refazer trajetos.",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "required": ["data_inicial", "data_final"],
+                "properties": {
+                  "placa": { "type": "string", "example": "MFE-7705", "description": "Placa do veículo" },
+                  "id_veiculo": { "type": "integer", "example": 10, "description": "Ou o ID do veículo" },
+                  "data_inicial": { "type": "string", "example": "2026-05-29 00:00:00" },
+                  "data_final": { "type": "string", "example": "2026-05-29 23:59:59" },
+                  "pagina": { "type": "integer", "default": 1, "example": 1 },
+                  "limite": { "type": "integer", "default": 500, "example": 500 },
+                  "ordem": { "type": "string", "enum": ["ASC", "DESC"], "default": "ASC" }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Histórico retornado com sucesso"
+          }
+        }
+      },
+      "get": {
+        "summary": "3. Histórico de posições por período (via GET com query parameters)",
+        "parameters": [
+          { "name": "placa", "in": "query", "schema": { "type": "string" } },
+          { "name": "id_veiculo", "in": "query", "schema": { "type": "integer" } },
+          { "name": "data_inicial", "in": "query", "required": true, "schema": { "type": "string" } },
+          { "name": "data_final", "in": "query", "required": true, "schema": { "type": "string" } },
+          { "name": "pagina", "in": "query", "schema": { "type": "integer", "default": 1 } },
+          { "name": "limite", "in": "query", "schema": { "type": "integer", "default": 500 } }
+        ],
+        "responses": { "200": { "description": "Sucesso" } }
+      }
+    },
+    "/posicoes/novas": {
+      "post": {
+        "summary": "4. Posições novas da frota inteira (sincronização contínua a cada 1-2 min por cursor)",
+        "description": "Endpoint mais importante para integração contínua: devolve tudo o que chegou no servidor desde a última consulta através do cursor. Captura também dados descarregados com atraso por falta de sinal.",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "cursor": { "type": "integer", "example": 2071580000, "description": "O proximo_cursor recebido na consulta anterior" },
+                  "limite": { "type": "integer", "default": 1000, "example": 1000 },
+                  "data_inicial": { "type": "string", "example": "2026-05-29 07:00:00", "description": "Usado opcionalmente na 1ª consulta caso não tenha cursor" }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Novas posições retornadas",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "qtd": { "type": "integer", "example": 15 },
+                    "cursor_anterior": { "type": "integer", "example": 2071580000 },
+                    "proximo_cursor": { "type": "integer", "example": 2071581797 },
+                    "mais_registros": { "type": "boolean", "example": false },
+                    "posicoes": {
+                      "type": "array",
+                      "items": { "$ref": "#/components/schemas/Posicao" }
+                    }
+                  }
+                }
+              }
+            }
+          }
+        }
+      },
+      "get": {
+        "summary": "4. Posições novas da frota (via GET)",
+        "parameters": [
+          { "name": "cursor", "in": "query", "schema": { "type": "integer" } },
+          { "name": "limite", "in": "query", "schema": { "type": "integer", "default": 1000 } }
+        ],
+        "responses": { "200": { "description": "Sucesso" } }
+      }
+    }
+  }
+}

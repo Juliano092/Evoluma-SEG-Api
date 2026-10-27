@@ -7,9 +7,12 @@ const Veiculo = sequelize.define('Veiculo', {
         primaryKey: true,
         autoIncrement: true
     },
+    id: DataTypes.STRING, // ID do equipamento/rastreador (ex: 999999 para sem rastreador)
     placa: DataTypes.STRING,
     prefixo: DataTypes.STRING,
     modelo: DataTypes.STRING,
+    descricao: DataTypes.STRING,
+    status: DataTypes.STRING,
     cacamba_com_status_motor: DataTypes.STRING, // Novo campo para controle de exibição
     cod_cliente: DataTypes.INTEGER // Chave estrangeira (FK)
 }, {

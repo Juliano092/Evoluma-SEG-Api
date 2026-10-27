@@ -1,17 +1,42 @@
 // gerarToken.js
 const jwt = require('jsonwebtoken');
-require('dotenv').config(); // Carrega seu segredo do .env
+require('dotenv').config();
 
-// Configuração do "Super Usuário"
-const payload = {
-    id: 1,                // O ID Mágico que libera tudo no seu Controller
-    nome: "Admin Mestre", // Nome fictício
-    cod_cliente: 0        // Admin não precisa de cliente específico
-};
+const args = process.argv.slice(2);
+const codClienteArg = args[0];
+const nomeClienteArg = args[1] || 'Cliente Integracao';
 
-// Gera o token (Válido por 10 anos para você não se preocupar)
-const token = jwt.sign(payload, process.env.JWT_SECRET, { expiresIn: '3650d' });
+let codNum = 0;
+let tipoToken = 'ADMIN MESTRE (Acesso Total)';
 
-console.log("\n=== SEU TOKEN MESTRE (CUIDADO COM ELE) ===");
+if (codClienteArg) {
+    codNum = parseInt(codClienteArg, 10);
+    if (isNaN(codNum)) {
+        console.error('ERRO: O código do cliente deve ser um número.');
+        console.error('Uso: node gerarToken.js <cod_cliente> [nome_cliente]');
+        process.exit(1);
+    }
+    tipoToken = `CLIENTE (cod_cliente: ${codNum} - "${nomeClienteArg}")`;
+}
+
+// Token ultra-compacto e permanente (sem expiração)
+const token = jwt.sign(
+    { c: codNum },
+    process.env.JWT_SECRET,
+    { noTimestamp: true, header: { typ: undefined } }
+);
+
+console.log('\n=============================================================');
+console.log(` TOKEN GERADO: ${tipoToken}`);
+console.log('=============================================================');
 console.log(token);
-console.log("==========================================\n");
+console.log('=============================================================');
+console.log('Como o cliente pode usar no cabeçalho das requisições:');
+console.log(`Authorization: Bearer ${token}`);
+console.log('ou');
+console.log(`X-API-Key: ${token}`);
+console.log('-------------------------------------------------------------');
+console.log('Dica: Para gerar para um cliente específico:');
+console.log('  node gerarToken.js <cod_cliente>');
+console.log('Exemplo:');
+console.log('  node gerarToken.js 22\n');

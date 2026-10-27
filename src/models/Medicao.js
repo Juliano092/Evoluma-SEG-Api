@@ -2,14 +2,17 @@ const { DataTypes } = require('sequelize');
 const sequelize = require('../config/database');
 
 const Medicao = sequelize.define('Medicao', {
-    id: { type: DataTypes.INTEGER, primaryKey: true, autoIncrement: true },
+    codigo: { type: DataTypes.BIGINT, primaryKey: true, autoIncrement: true },
+    id: { type: DataTypes.DECIMAL(10, 0) },
     // Mapeamento da data (igual fizemos antes)
     data_hora: { type: DataTypes.DATE, field: 'data' }, 
     
     // Novos campos vistos no PHP
-    latitude: { type: DataTypes.DECIMAL(10, 8) },
-    longitude: { type: DataTypes.DECIMAL(11, 8) },
+    latitude: { type: DataTypes.DECIMAL(17, 15) },
+    longitude: { type: DataTypes.DECIMAL(17, 15) },
     velocidade: { type: DataTypes.INTEGER },
+    curso: { type: DataTypes.DECIMAL(5, 2) },
+    km_odometro: { type: DataTypes.DECIMAL(10, 3) },
     
     status_motor: {
         type: DataTypes.STRING,
