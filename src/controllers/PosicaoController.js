@@ -63,7 +63,8 @@ const formatarPosicao = (item) => {
         velocidade: item.velocidade != null ? parseInt(item.velocidade, 10) : 0,
         direcao: item.curso != null ? parseFloat(item.curso) : 0,
         ignicao: ignicaoLigada ? 'Ligada' : 'Desligada',
-        odometro: item.km_odometro != null ? parseFloat(item.km_odometro) : 0
+        odometro: item.km_odometro != null ? parseFloat(item.km_odometro) : 0,
+        horimetro: item.horimetro != null ? parseFloat(item.horimetro) : 0
     };
 };
 
@@ -159,7 +160,7 @@ exports.ultimas = async (req, res) => {
 
         const querySql = `
             SELECT m.codigo, m.cod_veiculo, v.placa,
-                   m.latitude, m.longitude, m.data, m.data_transmissao, m.velocidade, m.status_motor, m.curso, m.km_odometro
+                   m.latitude, m.longitude, m.data, m.data_transmissao, m.velocidade, m.status_motor, m.curso, m.km_odometro, m.horimetro
             FROM veiculo v
             JOIN ultima_medicao m ON m.cod_veiculo = v.codigo
             ${whereSql}
@@ -267,7 +268,7 @@ exports.historico = async (req, res) => {
         // Busca registros ordenados por data e codigo na tabela medicao_aux
         const querySql = `
             SELECT m.codigo, m.cod_veiculo, :placa AS placa,
-                   m.latitude, m.longitude, m.data, m.velocidade, m.status_motor, m.curso, m.km_odometro
+                   m.latitude, m.longitude, m.data, m.velocidade, m.status_motor, m.curso, m.km_odometro, m.horimetro
             FROM medicao_aux m
             WHERE m.cod_veiculo = :codVeiculo AND m.data >= :dtIni AND m.data <= :dtFim
             ORDER BY m.data ${direcaoOrdem}, m.codigo ${direcaoOrdem}
@@ -324,7 +325,7 @@ exports.novas = async (req, res) => {
 
         const querySql = `
             SELECT m.codigo, m.cod_veiculo, v.placa,
-                   m.latitude, m.longitude, m.data, m.velocidade, m.status_motor, m.curso, m.km_odometro
+                   m.latitude, m.longitude, m.data, m.velocidade, m.status_motor, m.curso, m.km_odometro, m.horimetro
             FROM medicao_aux m
             JOIN veiculo v ON v.codigo = m.cod_veiculo
             ${whereSql}

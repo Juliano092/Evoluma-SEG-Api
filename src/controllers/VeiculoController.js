@@ -66,7 +66,7 @@ exports.listar = async (req, res) => {
         // Busca os veículos juntamente com a última posição gravada na tabela 'ultima_medicao'
         const querySql = `
             SELECT v.codigo, v.id AS id_equipamento, v.placa, v.prefixo, v.modelo, v.descricao, v.status,
-                   m.latitude, m.longitude, m.data, m.velocidade, m.status_motor, m.curso, m.km_odometro
+                   m.latitude, m.longitude, m.data, m.velocidade, m.status_motor, m.curso, m.km_odometro, m.horimetro
             FROM veiculo v
             LEFT JOIN ultima_medicao m ON m.cod_veiculo = v.codigo
             ${whereSql}
@@ -98,7 +98,8 @@ exports.listar = async (req, res) => {
                 direcao: v.curso != null ? parseFloat(v.curso) : 0,
                 ignicao: ignicaoLigada ? 'Ligado' : 'Desligado',
                 ignicao_ligada: ignicaoLigada,
-                odometro: v.km_odometro != null ? parseFloat(v.km_odometro) : 0
+                odometro: v.km_odometro != null ? parseFloat(v.km_odometro) : 0,
+                horimetro: v.horimetro != null ? parseFloat(v.horimetro) : 0
             };
         });
 
