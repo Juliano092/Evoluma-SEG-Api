@@ -53,7 +53,7 @@ const formatarPosicao = (item) => {
     const dataRecebimento = formatarDataComFuso(item.data_transmissao || item.data);
     const ignicaoLigada = item.status_motor === '1' || item.status_motor === 'Ligado';
 
-    return {
+    const obj = {
         id_veiculo: Number(item.cod_veiculo),
         placa: item.placa || null,
         latitude: item.latitude != null ? parseFloat(item.latitude) : null,
@@ -63,9 +63,16 @@ const formatarPosicao = (item) => {
         velocidade: item.velocidade != null ? parseInt(item.velocidade, 10) : 0,
         direcao: item.curso != null ? parseFloat(item.curso) : 0,
         ignicao: ignicaoLigada ? 'Ligada' : 'Desligada',
+        ignicao_ligada: ignicaoLigada,
         odometro: item.km_odometro != null ? parseFloat(item.km_odometro) : 0,
         horimetro: item.horimetro != null ? parseFloat(item.horimetro) : 0
     };
+
+    if (item.codigo != null) {
+        obj.id_posicao = Number(item.codigo);
+    }
+
+    return obj;
 };
 
 /**
@@ -302,8 +309,10 @@ exports.novas = async (req, res) => {
         const params = { ...req.query, ...req.body };
         const cursorRecebido = params.cursor || params.ultimo_id || params.desde_id || null;
         const limiteSolicitado = Math.min(Math.max(parseInt(params.limite, 10) || 1000, 1), 5000);
+        const placaFiltro = params.placa || null;
+        const idVeiculoFiltro = params.id_veiculo || params.id || params.cod_veiculo || null;
 
-        const autorizacao = await obterIdsVeiculosAutorizados(usuario);
+        const autorizacao = await obterIdsVeiculosAutorizados(usuario, placaFiltro, idVeiculoFiltro);
         if (autorizacao.erro) {
             return res.status(autorizacao.status).json({ erro: true, mensagem: autorizacao.mensagem });
         }
