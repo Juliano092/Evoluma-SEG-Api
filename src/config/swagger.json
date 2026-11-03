@@ -48,7 +48,6 @@
           "velocidade": { "type": "integer", "example": 0 },
           "direcao": { "type": "number", "example": 0 },
           "ignicao": { "type": "string", "enum": ["Ligada", "Desligada"], "example": "Desligada" },
-          "ignicao_ligada": { "type": "boolean", "example": false },
           "odometro": { "type": "number", "example": 453239.14 }
         }
       },
@@ -65,7 +64,6 @@
           "velocidade": { "type": "integer", "example": 0, "description": "Velocidade em km/h" },
           "direcao": { "type": "number", "example": 0, "description": "Curso/azimute em graus" },
           "ignicao": { "type": "string", "enum": ["Ligada", "Desligada"], "example": "Desligada" },
-          "ignicao_ligada": { "type": "boolean", "example": false, "description": "Status booleano da ignição (true = ligada, false = desligada)" },
           "odometro": { "type": "number", "example": 453239.14, "description": "Odômetro em km" }
         }
       }
