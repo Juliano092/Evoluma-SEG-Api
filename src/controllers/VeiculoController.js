@@ -97,7 +97,7 @@ exports.listar = async (req, res) => {
                 data_hora: formatarData(v.data),
                 velocidade: v.velocidade != null ? parseInt(v.velocidade, 10) : 0,
                 direcao: v.curso != null ? parseFloat(v.curso) : 0,
-                ignicao: ignicaoLigada ? 'Ligada' : 'Desligada',
+                ignicao: ignicaoLigada ? '1' : '0',
                 odometro: v.km_odometro != null ? parseFloat(v.km_odometro) : 0,
                 horimetro: v.horimetro != null ? parseFloat(v.horimetro) : 0
             };

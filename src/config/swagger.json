@@ -47,8 +47,8 @@
           "data_hora": { "type": "string", "nullable": true, "example": "2025-08-23 12:54:52", "description": "Data/hora da última medição (Horário de Brasília)" },
           "velocidade": { "type": "integer", "example": 0 },
           "direcao": { "type": "number", "example": 0 },
-          "ignicao": { "type": "string", "enum": ["Ligada", "Desligada"], "example": "Desligada" },
-          "odometro": { "type": "number", "example": 453239.14 }
+          "ignicao": { "type": "string", "enum": ["1", "0"], "example": "0", "description": "Status da ignição: '1' para ligada e '0' para desligada" },
+          "odometro": { "type": "number", "example": 453239.14, "description": "Odômetro em km" }
         }
       },
       "Posicao": {
@@ -62,7 +62,7 @@
           "data_hora_gps": { "type": "string", "example": "2025-08-23 12:54:52", "description": "Data/hora do GPS (Horário de Brasília)" },
           "velocidade": { "type": "integer", "example": 0, "description": "Velocidade em km/h" },
           "direcao": { "type": "number", "example": 0, "description": "Curso/azimute em graus" },
-          "ignicao": { "type": "string", "enum": ["Ligada", "Desligada"], "example": "Desligada" },
+          "ignicao": { "type": "string", "enum": ["1", "0"], "example": "0", "description": "Status da ignição: '1' para ligada e '0' para desligada" },
           "odometro": { "type": "number", "example": 453239.14, "description": "Odômetro em km" }
         }
       }

@@ -61,7 +61,7 @@ const formatarPosicao = (item) => {
         data_hora_gps: dataGps,
         velocidade: item.velocidade != null ? parseInt(item.velocidade, 10) : 0,
         direcao: item.curso != null ? parseFloat(item.curso) : 0,
-        ignicao: ignicaoLigada ? 'Ligada' : 'Desligada',
+        ignicao: ignicaoLigada ? '1' : '0',
         odometro: item.km_odometro != null ? parseFloat(item.km_odometro) : 0,
         horimetro: item.horimetro != null ? parseFloat(item.horimetro) : 0
     };
