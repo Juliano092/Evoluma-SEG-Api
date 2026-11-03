@@ -2,14 +2,15 @@ const { QueryTypes } = require('sequelize');
 const sequelize = require('../config/database');
 
 /**
- * Helper para formatar a data com o fuso horário de Brasília (-03:00)
+ * Helper para formatar a data apenas com data e hora (YYYY-MM-DD HH:mm:ss)
  */
-const formatarDataComFuso = (data) => {
+const formatarData = (data) => {
     if (!data) return null;
-    const s = String(data).trim().replace(' ', 'T');
-    if (!s.includes('-03:00') && !s.includes('+') && !s.includes('Z')) {
-        return `${s}-03:00`;
-    }
+    let s = String(data).trim().replace('T', ' ');
+    // Remove fuso horário se vier no formato ISO (ex: -03:00 ou Z)
+    s = s.replace(/([+-]\d{2}:\d{2}|Z)$/, '').trim();
+    // Remove milissegundos se houver (.000)
+    s = s.replace(/\.\d+$/, '');
     return s;
 };
 
@@ -93,7 +94,7 @@ exports.listar = async (req, res) => {
                 status: estaAtivo ? 'Ativo' : 'Inativo',
                 latitude: v.latitude != null ? parseFloat(v.latitude) : null,
                 longitude: v.longitude != null ? parseFloat(v.longitude) : null,
-                data_hora: formatarDataComFuso(v.data),
+                data_hora: formatarData(v.data),
                 velocidade: v.velocidade != null ? parseInt(v.velocidade, 10) : 0,
                 direcao: v.curso != null ? parseFloat(v.curso) : 0,
                 ignicao: ignicaoLigada ? 'Ligada' : 'Desligada',

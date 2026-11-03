@@ -3,14 +3,15 @@ const sequelize = require('../config/database');
 const Veiculo = require('../models/Veiculo');
 
 /**
- * Helper para formatar a data com o fuso horário de Brasília (-03:00)
+ * Helper para formatar a data apenas com data e hora (YYYY-MM-DD HH:mm:ss)
  */
-const formatarDataComFuso = (data) => {
+const formatarData = (data) => {
     if (!data) return null;
-    const s = String(data).trim().replace(' ', 'T');
-    if (!s.includes('-03:00') && !s.includes('+') && !s.includes('Z')) {
-        return `${s}-03:00`;
-    }
+    let s = String(data).trim().replace('T', ' ');
+    // Remove fuso horário se vier no formato ISO (ex: -03:00 ou Z)
+    s = s.replace(/([+-]\d{2}:\d{2}|Z)$/, '').trim();
+    // Remove milissegundos se houver (.000)
+    s = s.replace(/\.\d+$/, '');
     return s;
 };
 
@@ -49,8 +50,8 @@ const normalizarDataHora = (valor, padraoFim = false) => {
  * - odômetro
  */
 const formatarPosicao = (item) => {
-    const dataGps = formatarDataComFuso(item.data);
-    const dataRecebimento = formatarDataComFuso(item.data_transmissao || item.data);
+    const dataGps = formatarData(item.data);
+    const dataRecebimento = formatarData(item.data_transmissao || item.data);
     const ignicaoLigada = item.status_motor === '1' || item.status_motor === 'Ligado';
 
     const obj = {

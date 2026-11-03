@@ -44,10 +44,10 @@
           "status": { "type": "string", "example": "Ativo" },
           "latitude": { "type": "number", "format": "float", "nullable": true, "example": -26.869693 },
           "longitude": { "type": "number", "format": "float", "nullable": true, "example": -49.096852 },
-          "data_hora": { "type": "string", "nullable": true, "example": "2025-08-23T12:54:52-03:00" },
+          "data_hora": { "type": "string", "nullable": true, "example": "2025-08-23 12:54:52", "description": "Data/hora da última medição (Horário de Brasília)" },
           "velocidade": { "type": "integer", "example": 0 },
           "direcao": { "type": "number", "example": 0 },
-          "ignicao": { "type": "string", "example": "Desligado" },
+          "ignicao": { "type": "string", "enum": ["Ligada", "Desligada"], "example": "Desligada" },
           "ignicao_ligada": { "type": "boolean", "example": false },
           "odometro": { "type": "number", "example": 453239.14 }
         }
@@ -55,15 +55,17 @@
       "Posicao": {
         "type": "object",
         "properties": {
+          "id_posicao": { "type": "integer", "example": 2071581783, "description": "Identificador sequencial único da posição (útil para cursor/sincronização)" },
           "id_veiculo": { "type": "integer", "example": 2205 },
           "placa": { "type": "string", "example": "AKL5149" },
           "latitude": { "type": "number", "format": "float", "example": -26.869693 },
           "longitude": { "type": "number", "format": "float", "example": -49.096852 },
-          "data_hora_gps": { "type": "string", "example": "2025-08-23T12:54:52-03:00", "description": "Data/hora do GPS com fuso (-03:00)" },
-          "data_hora_recebimento": { "type": "string", "example": "2025-08-23T12:54:56-03:00", "description": "Data/hora recebida pelo servidor com fuso (-03:00)" },
+          "data_hora_gps": { "type": "string", "example": "2025-08-23 12:54:52", "description": "Data/hora do GPS (Horário de Brasília)" },
+          "data_hora_recebimento": { "type": "string", "example": "2025-08-23 12:54:56", "description": "Data/hora recebida pelo servidor (Horário de Brasília)" },
           "velocidade": { "type": "integer", "example": 0, "description": "Velocidade em km/h" },
           "direcao": { "type": "number", "example": 0, "description": "Curso/azimute em graus" },
           "ignicao": { "type": "string", "enum": ["Ligada", "Desligada"], "example": "Desligada" },
+          "ignicao_ligada": { "type": "boolean", "example": false, "description": "Status booleano da ignição (true = ligada, false = desligada)" },
           "odometro": { "type": "number", "example": 453239.14, "description": "Odômetro em km" }
         }
       }
