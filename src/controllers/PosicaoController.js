@@ -51,7 +51,6 @@ const normalizarDataHora = (valor, padraoFim = false) => {
  */
 const formatarPosicao = (item) => {
     const dataGps = formatarData(item.data);
-    const dataRecebimento = formatarData(item.data_transmissao || item.data);
     const ignicaoLigada = item.status_motor === '1' || item.status_motor === 'Ligado';
 
     const obj = {
@@ -60,7 +59,6 @@ const formatarPosicao = (item) => {
         latitude: item.latitude != null ? parseFloat(item.latitude) : null,
         longitude: item.longitude != null ? parseFloat(item.longitude) : null,
         data_hora_gps: dataGps,
-        data_hora_recebimento: dataRecebimento,
         velocidade: item.velocidade != null ? parseInt(item.velocidade, 10) : 0,
         direcao: item.curso != null ? parseFloat(item.curso) : 0,
         ignicao: ignicaoLigada ? 'Ligada' : 'Desligada',

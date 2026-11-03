@@ -60,7 +60,6 @@
           "latitude": { "type": "number", "format": "float", "example": -26.869693 },
           "longitude": { "type": "number", "format": "float", "example": -49.096852 },
           "data_hora_gps": { "type": "string", "example": "2025-08-23 12:54:52", "description": "Data/hora do GPS (Horário de Brasília)" },
-          "data_hora_recebimento": { "type": "string", "example": "2025-08-23 12:54:56", "description": "Data/hora recebida pelo servidor (Horário de Brasília)" },
           "velocidade": { "type": "integer", "example": 0, "description": "Velocidade em km/h" },
           "direcao": { "type": "number", "example": 0, "description": "Curso/azimute em graus" },
           "ignicao": { "type": "string", "enum": ["Ligada", "Desligada"], "example": "Desligada" },
