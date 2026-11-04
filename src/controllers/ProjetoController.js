@@ -264,6 +264,9 @@ exports.resumoVeiculos = async (req, res) => {
         // Tolerância de micro-movimento/oscilação de GPS (em minutos) para fundir paradas no mesmo local
         const toleranciaOscilacaoMin = 2;
 
+        // Limite máximo de contabilização de parada: 60 dias (86.400 minutos)
+        const maxParadaMinutos = 60 * 24 * 60;
+
         let whereVeiculo = {};
         if (usuario.id != 1) {
             if (!usuario.cod_cliente) {
@@ -606,9 +609,10 @@ exports.resumoVeiculos = async (req, res) => {
                         paradasConsolidadas.push({
                             placa: veic.placa ? String(veic.placa).trim() : 'Desconhecido',
                             prefixo: veic.prefixo ? String(veic.prefixo).trim() : null,
+                            descricao: veic.descricao ? String(veic.descricao).trim() : (veic.modelo ? String(veic.modelo).trim() : null),
                             inicio_parada: interv.inicio_parada,
                             fim_parada: interv.fim_parada,
-                            tempo_parado: formatarMinutosExtenso(minutos),
+                            tempo_parado: formatarMinutosExtenso(Math.min(minutos, maxParadaMinutos)),
                             proximidade: proxFinal,
                             latitude: interv.latitude,
                             longitude: interv.longitude
@@ -647,9 +651,10 @@ exports.resumoVeiculos = async (req, res) => {
                     paradasConsolidadas.push({
                         placa: veic.placa ? String(veic.placa).trim() : 'Desconhecido',
                         prefixo: veic.prefixo ? String(veic.prefixo).trim() : null,
+                        descricao: veic.descricao ? String(veic.descricao).trim() : (veic.modelo ? String(veic.modelo).trim() : null),
                         inicio_parada: inicioReal,
                         fim_parada: fimReal,
-                        tempo_parado: formatarMinutosExtenso(minutos),
+                        tempo_parado: formatarMinutosExtenso(Math.min(minutos, maxParadaMinutos)),
                         proximidade: proxFinal,
                         latitude: u.latitude != null ? String(u.latitude) : null,
                         longitude: u.longitude != null ? String(u.longitude) : null
@@ -692,9 +697,10 @@ exports.resumoVeiculos = async (req, res) => {
                     paradasConsolidadas.push({
                         placa: veic.placa ? String(veic.placa).trim() : 'Desconhecido',
                         prefixo: veic.prefixo ? String(veic.prefixo).trim() : null,
+                        descricao: veic.descricao ? String(veic.descricao).trim() : (veic.modelo ? String(veic.modelo).trim() : null),
                         inicio_parada: p.inicio_parada,
                         fim_parada: p.fim_parada,
-                        tempo_parado: formatarMinutosExtenso(minutos),
+                        tempo_parado: formatarMinutosExtenso(Math.min(minutos, maxParadaMinutos)),
                         proximidade: p.proximidades || null,
                         latitude: p.latitude != null ? String(p.latitude) : null,
                         longitude: p.longitude != null ? String(p.longitude) : null
