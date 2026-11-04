@@ -280,7 +280,17 @@ exports.resumoVeiculos = async (req, res) => {
         }
 
         if (placa && String(placa).trim() !== '') {
-            whereVeiculo.placa = String(placa).trim();
+            const pLimpa = String(placa).trim();
+            const pComEspaco = pLimpa.replace(/-/g, ' ');
+            const pComHifen = pLimpa.replace(/\s+/g, '-');
+            const variantes = Array.from(new Set([pLimpa, pComEspaco, pComHifen]));
+
+            whereVeiculo[Op.or] = [
+                { placa: { [Op.in]: variantes } },
+                { prefixo: { [Op.in]: variantes } },
+                sequelize.where(sequelize.fn('TRIM', sequelize.col('placa')), { [Op.in]: variantes }),
+                sequelize.where(sequelize.fn('TRIM', sequelize.col('prefixo')), { [Op.in]: variantes })
+            ];
         } else {
             // Quando busca a frota geral, ignora TAGs virtuais sem rastreador (999999) e inativos
             whereVeiculo.id = { [Op.ne]: '999999' };
@@ -300,17 +310,16 @@ exports.resumoVeiculos = async (req, res) => {
         const mapVeiculos = new Map();
         veiculos.forEach(v => mapVeiculos.set(Number(v.codigo), v));
 
-        // Verifica se há configurações específicas de alerta de parada por veículo (velocidade_max, considerar_st_motor)
+        // Verifica configurações e o inicio_parada real em aberto registrado em veiculo_alerta_parada
         const configParadaPorVeiculo = new Map();
         try {
             const configs = await sequelize.query(`
                 SELECT vap.cod_veiculo,
                        MAX(ap.velocidade_max) AS velocidade_max,
-                       MAX(CASE WHEN ap.considerar_st_motor = 'S' THEN 1 ELSE 0 END) AS exige_motor_desligado
+                       MIN(vap.inicio_parada) AS inicio_parada_ativo
                 FROM veiculo_alerta_parada vap
-                JOIN alerta_parada ap ON ap.codigo = vap.cod_alerta
+                LEFT JOIN alerta_parada ap ON ap.codigo = vap.cod_alerta AND ap.ativo = 'S'
                 WHERE vap.cod_veiculo IN (:ids_veiculos)
-                  AND ap.ativo = 'S'
                 GROUP BY vap.cod_veiculo
             `, {
                 replacements: { ids_veiculos },
@@ -320,16 +329,16 @@ exports.resumoVeiculos = async (req, res) => {
             configs.forEach(c => {
                 configParadaPorVeiculo.set(Number(c.cod_veiculo), {
                     velocidadeMax: c.velocidade_max != null ? Number(c.velocidade_max) : 1,
-                    exigeMotorDesligado: Number(c.exige_motor_desligado) === 1
+                    inicioParadaAtivo: c.inicio_parada_ativo || null
                 });
             });
         } catch (_) {
             // Se a tabela não existir em algum ambiente, segue com o padrão (velocidade <= 1)
         }
 
-        // Busca última medição dos veículos (para obter data de referência e fallback de endereço/proximidade)
+        // Busca última medição dos veículos (para obter data de referência, status atual e fallback de endereço)
         const ultimasMedicoes = await sequelize.query(`
-            SELECT cod_veiculo, data, endereco, bairro, cidade, latitude, longitude
+            SELECT cod_veiculo, data, velocidade, status_motor, endereco, bairro, cidade, latitude, longitude
             FROM ultima_medicao
             WHERE cod_veiculo IN (:ids_veiculos)
         `, {
@@ -337,17 +346,25 @@ exports.resumoVeiculos = async (req, res) => {
             type: QueryTypes.SELECT
         });
 
+        const mapUltimaMedicao = new Map();
         const mapProximidadeUltima = new Map();
         let maxDataFrota = null;
+        const agoraMais1Dia = new Date(Date.now() + 24 * 60 * 60 * 1000);
+
         for (const u of ultimasMedicoes) {
+            const cod = Number(u.cod_veiculo);
+            mapUltimaMedicao.set(cod, u);
             const prox = montarProximidade(u.endereco, u.bairro, u.cidade);
             if (prox) {
-                mapProximidadeUltima.set(Number(u.cod_veiculo), prox);
+                mapProximidadeUltima.set(cod, prox);
             }
             if (u.data) {
                 const dt = new Date(u.data);
-                if (!maxDataFrota || dt > maxDataFrota) {
-                    maxDataFrota = dt;
+                // Ignora datas futuras corrompidas de GPS ao definir a referência da frota
+                if (!isNaN(dt) && dt <= agoraMais1Dia) {
+                    if (!maxDataFrota || dt > maxDataFrota) {
+                        maxDataFrota = dt;
+                    }
                 }
             }
         }
@@ -397,7 +414,7 @@ exports.resumoVeiculos = async (req, res) => {
         } catch (_) {}
 
         // 1. Busca a série histórica de medições em medicao_aux (usa o índice idx_rota: cod_veiculo + data)
-        let medicoes = await sequelize.query(`
+        const medicoes = await sequelize.query(`
             SELECT cod_veiculo, data, velocidade, status_motor, latitude, longitude, endereco, cidade, bairro
             FROM medicao_aux
             WHERE cod_veiculo IN (:ids_veiculos)
@@ -408,25 +425,12 @@ exports.resumoVeiculos = async (req, res) => {
             type: QueryTypes.SELECT
         });
 
-        // Se o período consultado não estiver em medicao_aux, tenta na tabela medicao
-        if (!medicoes || medicoes.length === 0) {
-            medicoes = await sequelize.query(`
-                SELECT cod_veiculo, data, velocidade, status_motor, latitude, longitude, endereco, cidade, bairro
-                FROM medicao
-                WHERE cod_veiculo IN (:ids_veiculos)
-                  AND data >= :dtIni AND data <= :dtFim
-                ORDER BY cod_veiculo ASC, data ASC, codigo ASC
-            `, {
-                replacements: { ids_veiculos, dtIni, dtFim },
-                type: QueryTypes.SELECT
-            });
-        }
-
         const forcarIgnicao = considerar_ignicao !== undefined && considerar_ignicao !== null
             ? (String(considerar_ignicao).toLowerCase() === 'true' || String(considerar_ignicao) === '1')
             : null;
 
         const paradasConsolidadas = [];
+        const veiculosComParadaAtual = new Set();
 
         if (medicoes && medicoes.length > 0) {
             // Agrupa medições por veículo
@@ -441,10 +445,11 @@ exports.resumoVeiculos = async (req, res) => {
 
             // Processa a linha do tempo de cada veículo para encontrar início e fim real de cada parada
             for (const [codVeiculo, lista] of medicoesPorVeiculo.entries()) {
-                const cfg = configParadaPorVeiculo.get(codVeiculo) || { velocidadeMax: 1, exigeMotorDesligado: false };
+                const cfg = configParadaPorVeiculo.get(codVeiculo) || { velocidadeMax: 1, exigeMotorDesligado: false, inicioParadaAtivo: null };
                 const velMax = cfg.velocidadeMax;
-                // Respeita a configuração do alerta do veículo (ex: escavadeiras que trabalham paradas com motor ligado)
-                const avaliarMotor = forcarIgnicao !== null ? forcarIgnicao : cfg.exigeMotorDesligado;
+                // Por padrão avalia pela velocidade (<= velMax) para evitar inconsistências de pós-chave travado em '1'
+                // ou viradas rápidas de chave no pátio sem deslocamento
+                const avaliarMotor = forcarIgnicao !== null ? forcarIgnicao : false;
 
                 const intervalosBrutos = [];
                 let paradaAtual = null;
@@ -462,7 +467,8 @@ exports.resumoVeiculos = async (req, res) => {
                                 fim_parada: m.data,
                                 latitude: m.latitude != null ? String(m.latitude) : null,
                                 longitude: m.longitude != null ? String(m.longitude) : null,
-                                proximidade: montarProximidade(m.endereco, m.bairro, m.cidade)
+                                proximidade: montarProximidade(m.endereco, m.bairro, m.cidade),
+                                em_andamento: false
                             };
                         } else {
                             paradaAtual.fim_parada = m.data;
@@ -487,17 +493,24 @@ exports.resumoVeiculos = async (req, res) => {
 
                 // Se terminou a lista de medições e o veículo ainda estava parado
                 if (paradaAtual) {
+                    paradaAtual.em_andamento = true;
                     intervalosBrutos.push(paradaAtual);
                 }
 
                 // Funde paradas consecutivas separadas apenas por uma rápida oscilação de GPS (< 2 min)
+                // ou quando o veículo não saiu do mesmo local (< 50m de diferença e gap <= 10 min)
                 const intervalosFundidos = [];
                 for (const interv of intervalosBrutos) {
                     if (intervalosFundidos.length > 0) {
                         const anterior = intervalosFundidos[intervalosFundidos.length - 1];
                         const gapMin = (new Date(interv.inicio_parada) - new Date(anterior.fim_parada)) / 60000;
-                        if (gapMin >= 0 && gapMin <= toleranciaOscilacaoMin) {
+                        const mesmoLocal = anterior.latitude != null && interv.latitude != null
+                            && Math.abs(parseFloat(interv.latitude) - parseFloat(anterior.latitude)) < 0.0005
+                            && Math.abs(parseFloat(interv.longitude) - parseFloat(anterior.longitude)) < 0.0005;
+
+                        if (gapMin >= 0 && (gapMin <= toleranciaOscilacaoMin || (mesmoLocal && gapMin <= 10))) {
                             anterior.fim_parada = interv.fim_parada;
+                            anterior.em_andamento = interv.em_andamento;
                             if (!anterior.proximidade && interv.proximidade) {
                                 anterior.proximidade = interv.proximidade;
                             }
@@ -507,12 +520,83 @@ exports.resumoVeiculos = async (req, res) => {
                     intervalosFundidos.push(interv);
                 }
 
+                // Se a parada começou logo no primeiro pacote da janela consultada, o veículo já estava parado antes de dtIni.
+                // Verifica primeiro veiculo_alerta_parada e, se necessário, busca em medicao_aux a última movimentação real antes da janela.
+                if (intervalosFundidos.length > 0) {
+                    const primeiroInterv = intervalosFundidos[0];
+                    const ultimoInterv = intervalosFundidos[intervalosFundidos.length - 1];
+                    const primeiraMedicao = lista[0];
+
+                    if (ultimoInterv.em_andamento && cfg.inicioParadaAtivo && new Date(cfg.inicioParadaAtivo) < new Date(ultimoInterv.inicio_parada)) {
+                        ultimoInterv.inicio_parada = cfg.inicioParadaAtivo;
+                    }
+
+                    if (primeiraMedicao && primeiroInterv.inicio_parada === primeiraMedicao.data) {
+                        try {
+                            const [ultMov] = await sequelize.query(`
+                                SELECT data
+                                FROM medicao_aux
+                                WHERE cod_veiculo = :codVeiculo
+                                  AND data < :iniJanela
+                                  AND data >= DATE_SUB(:iniJanela, INTERVAL 60 DAY)
+                                  AND velocidade > :velMax
+                                ORDER BY data DESC
+                                LIMIT 1
+                            `, {
+                                replacements: { codVeiculo, iniJanela: primeiraMedicao.data, velMax },
+                                type: QueryTypes.SELECT
+                            });
+
+                            let realIni = null;
+                            if (ultMov && ultMov.data) {
+                                const [primParada] = await sequelize.query(`
+                                    SELECT data
+                                    FROM medicao_aux
+                                    WHERE cod_veiculo = :codVeiculo
+                                      AND data > :dataMov
+                                      AND data <= :iniJanela
+                                    ORDER BY data ASC
+                                    LIMIT 1
+                                `, {
+                                    replacements: { codVeiculo, dataMov: ultMov.data, iniJanela: primeiraMedicao.data },
+                                    type: QueryTypes.SELECT
+                                });
+                                realIni = primParada ? primParada.data : ultMov.data;
+                            } else {
+                                const [primAbs] = await sequelize.query(`
+                                    SELECT MIN(data) AS min_data
+                                    FROM medicao_aux
+                                    WHERE cod_veiculo = :codVeiculo
+                                      AND data <= :iniJanela
+                                      AND data >= DATE_SUB(:iniJanela, INTERVAL 60 DAY)
+                                `, {
+                                    replacements: { codVeiculo, iniJanela: primeiraMedicao.data },
+                                    type: QueryTypes.SELECT
+                                });
+                                realIni = primAbs ? primAbs.min_data : null;
+                            }
+
+                            if (realIni && new Date(realIni) < new Date(primeiroInterv.inicio_parada)) {
+                                primeiroInterv.inicio_parada = realIni;
+                            }
+                        } catch (_) {}
+                    }
+
+                    // Se a parada atual continua em andamento (ex: chave geral desligada no pátio), estende até a referência atual
+                    if (!data_inicial && ultimoInterv.em_andamento && cfg.inicioParadaAtivo && new Date(dtFim) > new Date(ultimoInterv.fim_parada)) {
+                        ultimoInterv.fim_parada = dtFim;
+                    }
+                }
+
                 // Filtra pelo tempo mínimo de parada (descarta paradas de semáforo/manobra)
                 for (const interv of intervalosFundidos) {
                     const diffMs = new Date(interv.fim_parada) - new Date(interv.inicio_parada);
                     const minutos = Math.floor(diffMs / 60000);
 
                     if (minutos >= minParadaMinutos) {
+                        if (interv.em_andamento) {
+                            veiculosComParadaAtual.add(codVeiculo);
+                        }
                         const veic = mapVeiculos.get(codVeiculo) || {};
                         const proxFinal = interv.proximidade
                             || mapProximidadeAlerta.get(codVeiculo)
@@ -520,8 +604,8 @@ exports.resumoVeiculos = async (req, res) => {
                             || null;
 
                         paradasConsolidadas.push({
-                            placa: veic.placa || 'Desconhecido',
-                            prefixo: veic.prefixo || null,
+                            placa: veic.placa ? String(veic.placa).trim() : 'Desconhecido',
+                            prefixo: veic.prefixo ? String(veic.prefixo).trim() : null,
                             inicio_parada: interv.inicio_parada,
                             fim_parada: interv.fim_parada,
                             tempo_parado: formatarMinutosExtenso(minutos),
@@ -530,6 +614,46 @@ exports.resumoVeiculos = async (req, res) => {
                             longitude: interv.longitude
                         });
                     }
+                }
+            }
+        }
+
+        // Complementa veículos que estão parados com chave geral desligada (sem pacotes recentes na janela de medicao_aux)
+        if (!data_inicial) {
+            for (const codVeiculo of ids_veiculos) {
+                if (veiculosComParadaAtual.has(codVeiculo)) continue;
+                const u = mapUltimaMedicao.get(codVeiculo);
+                if (!u) continue;
+
+                const cfg = configParadaPorVeiculo.get(codVeiculo) || { velocidadeMax: 1, inicioParadaAtivo: null };
+                const vel = u.velocidade != null ? Number(u.velocidade) : 0;
+                if (vel > cfg.velocidadeMax) continue;
+
+                const inicioReal = cfg.inicioParadaAtivo || u.data;
+                if (!inicioReal) continue;
+
+                const fimReal = (cfg.inicioParadaAtivo && new Date(dtFim) > new Date(inicioReal))
+                    ? dtFim
+                    : ((u.data && new Date(u.data) > new Date(inicioReal)) ? u.data : dtFim);
+                const diffMs = new Date(fimReal) - new Date(inicioReal);
+                const minutos = Math.floor(diffMs / 60000);
+
+                if (minutos >= minParadaMinutos) {
+                    const veic = mapVeiculos.get(codVeiculo) || {};
+                    const proxFinal = mapProximidadeUltima.get(codVeiculo)
+                        || mapProximidadeAlerta.get(codVeiculo)
+                        || null;
+
+                    paradasConsolidadas.push({
+                        placa: veic.placa ? String(veic.placa).trim() : 'Desconhecido',
+                        prefixo: veic.prefixo ? String(veic.prefixo).trim() : null,
+                        inicio_parada: inicioReal,
+                        fim_parada: fimReal,
+                        tempo_parado: formatarMinutosExtenso(minutos),
+                        proximidade: proxFinal,
+                        latitude: u.latitude != null ? String(u.latitude) : null,
+                        longitude: u.longitude != null ? String(u.longitude) : null
+                    });
                 }
             }
         }
@@ -566,8 +690,8 @@ exports.resumoVeiculos = async (req, res) => {
                     const minutos = Math.max(Math.floor(diffMs / 60000), 0);
 
                     paradasConsolidadas.push({
-                        placa: veic.placa || 'Desconhecido',
-                        prefixo: veic.prefixo || null,
+                        placa: veic.placa ? String(veic.placa).trim() : 'Desconhecido',
+                        prefixo: veic.prefixo ? String(veic.prefixo).trim() : null,
                         inicio_parada: p.inicio_parada,
                         fim_parada: p.fim_parada,
                         tempo_parado: formatarMinutosExtenso(minutos),
