@@ -523,18 +523,26 @@ exports.resumoVeiculos = async (req, res) => {
                     intervalosFundidos.push(interv);
                 }
 
-                // Se a parada começou logo no primeiro pacote da janela consultada, o veículo já estava parado antes de dtIni.
-                // Verifica primeiro veiculo_alerta_parada e, se necessário, busca em medicao_aux a última movimentação real antes da janela.
+                // Filtra pelo tempo mínimo de parada (descarta paradas de semáforo/manobra) e mantém apenas a parada mais recente do veículo
                 if (intervalosFundidos.length > 0) {
-                    const primeiroInterv = intervalosFundidos[0];
                     const ultimoInterv = intervalosFundidos[intervalosFundidos.length - 1];
-                    const primeiraMedicao = lista[0];
-
                     if (ultimoInterv.em_andamento && cfg.inicioParadaAtivo && new Date(cfg.inicioParadaAtivo) < new Date(ultimoInterv.inicio_parada)) {
                         ultimoInterv.inicio_parada = cfg.inicioParadaAtivo;
                     }
+                    if (!data_inicial && ultimoInterv.em_andamento && cfg.inicioParadaAtivo && new Date(dtFim) > new Date(ultimoInterv.fim_parada)) {
+                        ultimoInterv.fim_parada = dtFim;
+                    }
+                }
 
-                    if (primeiraMedicao && primeiroInterv.inicio_parada === primeiraMedicao.data) {
+                // Seleciona de trás para frente a parada mais recente que atinja o tempo mínimo (ou que tenha começado no início da janela)
+                const primeiraMedicao = lista[0];
+                let paradaMaisRecente = null;
+
+                for (let i = intervalosFundidos.length - 1; i >= 0; i--) {
+                    const cand = intervalosFundidos[i];
+
+                    // Se esta parada começou exatamente no primeiro pacote da janela, verifica o início real em medicao_aux antes de calcular os minutos
+                    if (primeiraMedicao && cand.inicio_parada === primeiraMedicao.data) {
                         try {
                             const [ultMov] = await sequelize.query(`
                                 SELECT data
@@ -579,45 +587,41 @@ exports.resumoVeiculos = async (req, res) => {
                                 realIni = primAbs ? primAbs.min_data : null;
                             }
 
-                            if (realIni && new Date(realIni) < new Date(primeiroInterv.inicio_parada)) {
-                                primeiroInterv.inicio_parada = realIni;
+                            if (realIni && new Date(realIni) < new Date(cand.inicio_parada)) {
+                                cand.inicio_parada = realIni;
                             }
                         } catch (_) {}
                     }
 
-                    // Se a parada atual continua em andamento (ex: chave geral desligada no pátio), estende até a referência atual
-                    if (!data_inicial && ultimoInterv.em_andamento && cfg.inicioParadaAtivo && new Date(dtFim) > new Date(ultimoInterv.fim_parada)) {
-                        ultimoInterv.fim_parada = dtFim;
-                    }
-                }
-
-                // Filtra pelo tempo mínimo de parada (descarta paradas de semáforo/manobra)
-                for (const interv of intervalosFundidos) {
-                    const diffMs = new Date(interv.fim_parada) - new Date(interv.inicio_parada);
+                    const diffMs = new Date(cand.fim_parada) - new Date(cand.inicio_parada);
                     const minutos = Math.floor(diffMs / 60000);
 
                     if (minutos >= minParadaMinutos) {
-                        if (interv.em_andamento) {
-                            veiculosComParadaAtual.add(codVeiculo);
-                        }
-                        const veic = mapVeiculos.get(codVeiculo) || {};
-                        const proxFinal = interv.proximidade
-                            || mapProximidadeAlerta.get(codVeiculo)
-                            || mapProximidadeUltima.get(codVeiculo)
-                            || null;
-
-                        paradasConsolidadas.push({
-                            placa: veic.placa ? String(veic.placa).trim() : 'Desconhecido',
-                            prefixo: veic.prefixo ? String(veic.prefixo).trim() : null,
-                            descricao: veic.descricao ? String(veic.descricao).trim() : (veic.modelo ? String(veic.modelo).trim() : null),
-                            inicio_parada: interv.inicio_parada,
-                            fim_parada: interv.fim_parada,
-                            tempo_parado: formatarMinutosExtenso(Math.min(minutos, maxParadaMinutos)),
-                            proximidade: proxFinal,
-                            latitude: interv.latitude,
-                            longitude: interv.longitude
-                        });
+                        paradaMaisRecente = { interv: cand, minutos };
+                        break;
                     }
+                }
+
+                if (paradaMaisRecente) {
+                    const { interv, minutos } = paradaMaisRecente;
+                    veiculosComParadaAtual.add(codVeiculo);
+                    const veic = mapVeiculos.get(codVeiculo) || {};
+                    const proxFinal = interv.proximidade
+                        || mapProximidadeAlerta.get(codVeiculo)
+                        || mapProximidadeUltima.get(codVeiculo)
+                        || null;
+
+                    paradasConsolidadas.push({
+                        placa: veic.placa ? String(veic.placa).trim() : 'Desconhecido',
+                        prefixo: veic.prefixo ? String(veic.prefixo).trim() : null,
+                        descricao: veic.descricao ? String(veic.descricao).trim() : (veic.modelo ? String(veic.modelo).trim() : null),
+                        inicio_parada: interv.inicio_parada,
+                        fim_parada: interv.fim_parada,
+                        tempo_parado: formatarMinutosExtenso(Math.min(minutos, maxParadaMinutos)),
+                        proximidade: proxFinal,
+                        latitude: interv.latitude,
+                        longitude: interv.longitude
+                    });
                 }
             }
         }
@@ -690,7 +694,11 @@ exports.resumoVeiculos = async (req, res) => {
                 });
 
                 for (const p of paradas) {
-                    const veic = mapVeiculos.get(Number(p.cod_veiculo)) || {};
+                    const cod = Number(p.cod_veiculo);
+                    if (veiculosComParadaAtual.has(cod)) continue;
+                    veiculosComParadaAtual.add(cod);
+
+                    const veic = mapVeiculos.get(cod) || {};
                     const diffMs = new Date(p.fim_parada) - new Date(p.inicio_parada);
                     const minutos = Math.max(Math.floor(diffMs / 60000), 0);
 
