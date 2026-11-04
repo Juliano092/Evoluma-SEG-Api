@@ -55,6 +55,7 @@ router.post('/posicoes/sincronizar', PosicaoController.novas);
 router.post('/medicoes', ProjetoController.medicoes);
 router.post('/alertas', ProjetoController.alertas);
 router.post('/abastecimentos', ProjetoController.abastecimentos);
+router.get('/veiculos/resumo', ProjetoController.resumoVeiculos);
 router.post('/veiculos/resumo', ProjetoController.resumoVeiculos);
 router.post('/recurso/:recurso', RecursoController.consultarPorUrl);
 
